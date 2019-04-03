@@ -30,7 +30,7 @@ test:
     - py.test --verbose
 
 about:
-  home: https://github.com/informaticslab/intake-hypothetic
+  home: https://github.com/informaticslab/iris-hypothetic
   license: BSD
   license_file: LICENSE
   summary: |
