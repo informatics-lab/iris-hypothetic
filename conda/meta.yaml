@@ -1,0 +1,37 @@
+package:
+   name: iris_hypothetic
+   version: {{ GIT_DESCRIBE_TAG }}
+
+source:
+   path: ..
+git:
+  depth: false
+
+build:
+  number: {{ GIT_DESCRIBE_NUMBER }}
+  script: python setup.py install --single-version-externally-managed --record=record.txt
+  noarch: python
+
+requirements:
+  build:
+    - python
+    - jinja2
+  run:
+    - python
+    - scipy
+    - iris
+
+test:
+  source_files:
+    - tests
+  requires:
+    - pytest
+  commands:
+    - py.test --verbose
+
+about:
+  home: https://github.com/informaticslab/intake-hypothetic
+  license: BSD
+  license_file: LICENSE
+  summary: |
+    Hypotheticube loader for iris
