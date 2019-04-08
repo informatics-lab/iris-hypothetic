@@ -78,6 +78,10 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
             variable = dataset.variables[self.variable_name]
             # Get the NetCDF variable data and slice.
             var = variable[keys]
+        except RuntimeError:
+            # TODO: Maybe raise a warning or handle this somehow.
+            self.fatal_fail = "Got exception when accessing the file with netCDF4"
+            return self._null_data(keys)
         finally:
             if dataset:
                 dataset.close()
