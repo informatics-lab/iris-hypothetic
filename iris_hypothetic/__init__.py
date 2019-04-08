@@ -133,4 +133,7 @@ def load_hypotheticube(template_cube_path, var_name,
                                 object_uris[index],
                                 replacement_coord))
 
-    return cubes.merge_cube()
+    hypotheticube = cubes.merge_cube()
+    hypotheticube.remove_coord("time")
+
+    return hypotheticube
