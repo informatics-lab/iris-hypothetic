@@ -6,7 +6,8 @@ import six
 from iris.fileformats.netcdf import NetCDFDataProxy
 from iris._lazy_data import as_lazy_data
 import pandas as pd
-
+import boto3
+import tempfile
 
 from ._version import get_versions
 __version__ = get_versions()['version']
@@ -17,7 +18,7 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
     """A reference to the data payload of a single NetCDF file variable."""
 
     __slots__ = ('shape', 'dtype', 'path', 'variable_name', 'fill_value',
-                 'safety_check_done', 'fatal_fail')
+                 'safety_check_done', 'fatal_fail', 'local_path', '_tempfile')
 
     def __init__(self, shape, dtype, path, variable_name,
                  fill_value=None, do_safety_check=False):
@@ -28,19 +29,34 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
         self.variable_name = variable_name
         self.fill_value = fill_value
         self.fatal_fail = False
+        self.local_path = None
+        self._tempfile = None
 
     @property
     def ndim(self):
         return len(self.shape)
 
     def check(self):
-        # TODO: Make named temporaty file
-        # TODO: Read path into temp file
+
+        bucket, key = self.path[len('s3://'):].split('/', 1)
+        s3 = boto3.resource('s3')
+
+        try:
+            object_body = s3.Bucket(bucket).Object(key).get()['Body'].read()
+        except s3.meta.client.exceptions.NoSuchKey:
+            self.fatal_fail = "no such file %s" % self.path
+            self.safety_check_done = True
+            return
+
+        self._tempfile = tempfile.NamedTemporaryFile()
+        self._tempfile.write(object_body)
+        self.local_path = self._tempfile.name
+
         try:
             # TODO: Pass in named temp file instead
-            dataset = netCDF4.Dataset(self.path)
+            dataset = netCDF4.Dataset(self.local_path)
         except OSError:
-            self.fatal_fail = "no such file %s" % self.path
+            self.fatal_fail = "no such file %s" % self.local_path
             self.safety_check_done = True
             return
 
@@ -48,7 +64,7 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
             variable = dataset.variables[self.variable_name]
         except KeyError:
             self.fatal_fail = "no variable {} in file {}".format(
-                self.variable_name, self.path)
+                self.variable_name, self.local_path)
             self.safety_check_done = True
             return
 
@@ -74,7 +90,7 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
             return self._null_data(keys)
 
         try:
-            dataset = netCDF4.Dataset(self.path)
+            dataset = netCDF4.Dataset(self.local_path)
             variable = dataset.variables[self.variable_name]
             # Get the NetCDF variable data and slice.
             var = variable[keys]
@@ -125,7 +141,16 @@ def create_syntheticube(template_cube, object_uri,
 
 def load_hypotheticube(template_cube_path, var_name,
                        replacement_coords, object_uris):
-    template_cube = iris.load_cube(template_cube_path, var_name)
+
+    path = template_cube_path
+    assert path.startswith('s3://'), f"File path(s) must be a s3 path starting 's3://'. Got {path}"
+
+    bucket, key = path[len('s3://'):].split('/', 1)
+    s3 = boto3.resource('s3')
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        tmp_file.write(s3.Bucket(bucket).Object(key).get()['Body'].read())
+        template_cube = iris.load_cube(tmp_file.name, var_name)
+
     cubes = iris.cube.CubeList([])
     for index, replacement_coord in replacement_coords.iterrows():
         cubes.append(
