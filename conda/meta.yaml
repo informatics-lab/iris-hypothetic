@@ -20,6 +20,7 @@ requirements:
     - python
     - scipy
     - iris
+    - boto3
 
 test:
   source_files:
