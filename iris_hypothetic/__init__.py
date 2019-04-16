@@ -119,9 +119,10 @@ def create_syntheticube(template_cube, object_uri,
         try:
             syntheticube.coord(coord_name).points = coord_value
         except ValueError:
-            coord = syntheticube.coord(coord_name)
-            num = coord.units.date2num(coord_value)
-            syntheticube.coord(coord_name).points = num
+            if isinstance(coord_value, str):
+                syntheticube.coord(coord_name).points = [float(x) for x in coord_value.split()]
+            else:
+                syntheticube.coord(coord_name).points = syntheticube.coord(coord_name).units.date2num(coord_value)
         syntheticube.coord(coord_name).bounds = None
 
     return syntheticube
@@ -137,7 +138,7 @@ def load_hypotheticube(template_cube_path, var_name,
                                 object_uris[index],
                                 replacement_coord))
 
-    hypotheticube = cubes.merge_cube()
+    hypotheticube = cubes.merge().concatenate_cube()
     hypotheticube.remove_coord("time")
 
     return hypotheticube
