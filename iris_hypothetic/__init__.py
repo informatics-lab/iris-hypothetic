@@ -7,6 +7,7 @@ from iris.fileformats.netcdf import NetCDFDataProxy
 from iris._lazy_data import as_lazy_data
 import pandas as pd
 import boto3
+from botocore.handlers import disable_signing
 import tempfile
 import urllib.request
 import os
@@ -74,12 +75,12 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
                 self.local_file.close()
             except FileNotFoundError:
                 pass
-            self.local_file = open_as_local(self.path)
+            self.local_file = open_as_local(self.path, self.storage_options)
 
     def check(self):
 
         try:
-            self.local_file = open_as_local(self.path)
+            self.local_file = open_as_local(self.path, self.storage_options)
         except IOError:
             self.fatal_fail = "no such file %s" % self.path
             self.safety_check_done = True
@@ -180,7 +181,7 @@ def load_hypotheticube(template_cube_path, var_name,
                        replacement_coords, object_uris, storage_options=None):
     file = None
     try:
-        file = open_as_local(template_cube_path)
+        file = open_as_local(template_cube_path, storage_options)
         template_cube = iris.load_cube(file.name, var_name)
     finally:
         if file:
