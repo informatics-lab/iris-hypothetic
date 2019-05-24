@@ -9,6 +9,7 @@ import pandas as pd
 import boto3
 import tempfile
 import urllib.request
+import os
 
 from ._version import get_versions
 __version__ = get_versions()['version']
@@ -31,7 +32,6 @@ def open_as_local(path, storage_options=None):
         file = tempfile.NamedTemporaryFile()
         file.write(object_body)
         file.seek(0)
-
         return file
 
     if path.startswith('http://') or path.startswith('https://'):
@@ -67,6 +67,14 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
     @property
     def ndim(self):
         return len(self.shape)
+
+    def ensure_local_exists(self):
+        if (not os.path.exists(self.local_file.name)) and (not self.local_file.name == self.path):
+            try:
+                self.local_file.close()
+            except FileNotFoundError:
+                pass
+            self.local_file = open_as_local(self.path)
 
     def check(self):
 
@@ -109,6 +117,8 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
 
         if self.fatal_fail:
             return self._null_data(keys)
+
+        self.ensure_local_exists()
 
         try:
             dataset = netCDF4.Dataset(self.local_file.name)
