@@ -15,10 +15,13 @@ __version__ = get_versions()['version']
 del get_versions
 
 
-def open_as_local(path):
+def open_as_local(path, storage_options=None):
     if path.startswith('s3://'):
         bucket, key = path[len('s3://'):].split('/', 1)
         s3 = boto3.resource('s3')
+
+        if storage_options and storage_options.get('anon', False):
+            s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
 
         try:
             object_body = s3.Bucket(bucket).Object(key).get()['Body'].read()
@@ -46,10 +49,10 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
     """A reference to the data payload of a single NetCDF file variable."""
 
     __slots__ = ('shape', 'dtype', 'path', 'variable_name', 'fill_value',
-                 'safety_check_done', 'fatal_fail', 'local_file', '_tempfile')
+                 'safety_check_done', 'fatal_fail', 'local_file', '_tempfile', 'storage_options')
 
     def __init__(self, shape, dtype, path, variable_name,
-                 fill_value=None, do_safety_check=False):
+                 fill_value=None, do_safety_check=False, storage_options=None):
         self.safety_check_done = do_safety_check
         self.shape = shape
         self.dtype = dtype
@@ -59,6 +62,7 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
         self.fatal_fail = False
         self.local_file = None
         self._tempfile = None
+        self.storage_options = storage_options
 
     @property
     def ndim(self):
@@ -131,13 +135,14 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
 
 
 def create_syntheticube(template_cube, object_uri,
-                        replacement_coords, fill_value=1e20):
+                        replacement_coords, fill_value=1e20, storage_options=None):
     cnp = CheckingNetCDFDataProxy(
         shape=template_cube.shape,
         dtype=template_cube.dtype,
         path=object_uri,
         variable_name=template_cube.var_name,
-        fill_value=fill_value)
+        fill_value=fill_value,
+        storage_options=storage_options)
     new_mdata = as_lazy_data(cnp)
 
     syntheticube = template_cube.copy(data=new_mdata)
@@ -157,8 +162,8 @@ def create_syntheticube(template_cube, object_uri,
 
 
 def load_hypotheticube(template_cube_path, var_name,
-                       replacement_coords, object_uris):
-
+                       replacement_coords, object_uris, storage_options=None):
+    file = None
     try:
         file = open_as_local(template_cube_path)
         template_cube = iris.load_cube(file.name, var_name)
@@ -171,7 +176,7 @@ def load_hypotheticube(template_cube_path, var_name,
         cubes.append(
             create_syntheticube(template_cube,
                                 object_uris[index],
-                                replacement_coord))
+                                replacement_coord, storage_options=storage_options))
 
     hypotheticube = cubes.merge_cube()
     hypotheticube.remove_coord("time")
