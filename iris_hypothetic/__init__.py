@@ -1,18 +1,19 @@
-import iris
-import netCDF4
-import numpy.ma as ma
-import numpy as np
-import six
-from iris.fileformats.netcdf import NetCDFDataProxy
-from iris._lazy_data import as_lazy_data
-import pandas as pd
-import boto3
-from botocore.handlers import disable_signing
-import tempfile
-import urllib.request
-import os
-
 from ._version import get_versions
+import os
+import urllib.request
+import tempfile
+from botocore.handlers import disable_signing
+import boto3
+import pandas as pd
+from iris._lazy_data import as_lazy_data
+from iris.fileformats.netcdf import NetCDFDataProxy
+import six
+import numpy as np
+import numpy.ma as ma
+import netCDF4
+import iris
+print('bye')
+
 __version__ = get_versions()['version']
 del get_versions
 
@@ -50,7 +51,7 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
     """A reference to the data payload of a single NetCDF file variable."""
 
     __slots__ = ('shape', 'dtype', 'path', 'variable_name', 'fill_value',
-                 'safety_check_done', 'fatal_fail', 'local_file', '_tempfile', 'storage_options')
+                 'safety_check_done', 'fatal_fail', 'local_file', 'storage_options')
 
     def __init__(self, shape, dtype, path, variable_name,
                  fill_value=None, do_safety_check=False, storage_options=None):
@@ -62,7 +63,6 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
         self.fill_value = fill_value
         self.fatal_fail = False
         self.local_file = None
-        self._tempfile = None
         self.storage_options = storage_options
 
     @property
@@ -70,10 +70,10 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
         return len(self.shape)
 
     def ensure_local_exists(self):
-        if (not os.path.exists(self.local_file.name)) and (not self.local_file.name == self.path):
+        if (not self.local_file) or (not os.path.exists(self.local_file.name)) and (not self.local_file.name == self.path):
             try:
                 self.local_file.close()
-            except FileNotFoundError:
+            except (FileNotFoundError, AttributeError):
                 pass
             self.local_file = open_as_local(self.path, self.storage_options)
 
@@ -142,7 +142,11 @@ class CheckingNetCDFDataProxy(NetCDFDataProxy):
         return fmt.format(self=self)
 
     def __getstate__(self):
-        return {attr: getattr(self, attr) for attr in self.__slots__}
+        state = {}
+        for i, slot in enumerate(self.__slots__):
+            value = getattr(self, slot) if slot != 'local_file' else None
+            state.update({slot: value})
+        return state
 
     def __setstate__(self, state):
         for key, value in six.iteritems(state):
