@@ -12,7 +12,6 @@ import numpy as np
 import numpy.ma as ma
 import netCDF4
 import iris
-print('bye')
 
 __version__ = get_versions()['version']
 del get_versions
